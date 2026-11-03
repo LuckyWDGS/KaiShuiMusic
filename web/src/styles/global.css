@@ -1,0 +1,109 @@
+:root {
+  /* 主题色随当前歌曲封面变化（见 stores/theme.ts）：
+     推荐页 / 听歌模式整窗使用封面色（.immersive），其它页面为深色底，只有播放条带封面色调 */
+  --theme-h: 190;
+  --theme-s: 14%;
+  --theme-top: hsl(var(--theme-h) var(--theme-s) 44%);
+  --theme-bottom: hsl(var(--theme-h) var(--theme-s) 31%);
+  --theme-bar: hsl(var(--theme-h) calc(var(--theme-s) + 8%) 15%);
+  --theme-solid: hsl(var(--theme-h) var(--theme-s) 26%);
+  --bg: #131313;
+  --bg-sidebar: #232323;
+  --surface: #2b2b2b;
+  --bg-elevated: #1e1e1e;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.6);
+  --text-3: rgba(255, 255, 255, 0.4);
+  --accent: #ffffff;
+  --accent-2: #e6e6e6;
+  --accent-soft: rgba(255, 255, 255, 0.16);
+  --danger: #ff4d6d;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --sidebar-w: 200px;
+  --topbar-h: 56px;
+  --playerbar-h: 88px;
+  --font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'HarmonyOS Sans SC', 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+/* 推荐页 / 听歌模式：整窗封面色，半透明层叠 */
+.immersive {
+  --bg-sidebar: rgba(0, 0, 0, 0.1);
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --bg-active: rgba(255, 255, 255, 0.16);
+  --text-2: rgba(255, 255, 255, 0.72);
+  --text-3: rgba(255, 255, 255, 0.48);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input { font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
+img { display: block; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+::-webkit-scrollbar-track { background: transparent; }
+
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muted { color: var(--text-2); }
+
+.page { padding: 8px 32px 40px; }
+.page-title { font-size: 26px; font-weight: 700; margin: 12px 0 20px; }
+.section { margin-bottom: 36px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.section-title { font-size: 19px; font-weight: 700; }
+.section-more { color: var(--text-2); font-size: 13px; display: inline-flex; align-items: center; gap: 2px; }
+.section-more:hover { color: var(--text); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 18px;
+  border-radius: 18px; background: var(--bg-active); font-size: 14px; transition: background .15s, transform .1s;
+}
+.btn:hover { background: rgba(255, 255, 255, 0.16); }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: #e9e9e9; color: #121212; font-weight: 700; border-radius: 8px; }
+.btn.primary:hover { background: #fff; }
+
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px;
+  border-radius: 50%; color: var(--text-2); transition: color .15s, background .15s;
+}
+.icon-btn:hover { color: var(--text); background: var(--bg-hover); }
+.icon-btn.active { color: var(--accent); }
+
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tab {
+  height: 32px; padding: 0 16px; border-radius: 16px; color: var(--text-2); background: var(--bg-hover);
+  font-size: 13px; transition: all .15s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: #121212; background: var(--text); font-weight: 600; }
+
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 24px 20px; }
+
+.empty { padding: 80px 0; text-align: center; color: var(--text-3); }
+
+.skeleton { background: linear-gradient(90deg, rgba(255,255,255,.06) 25%, rgba(255,255,255,.12) 37%, rgba(255,255,255,.06) 63%); background-size: 400% 100%; animation: sk 1.4s ease infinite; }
+@keyframes sk { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+.liked { color: var(--danger) !important; }
+
+/* 电视端：放大字号与焦点框，适配遥控器方向键操作 */
+.platform-tv { font-size: 18px; }
+.platform-tv :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
