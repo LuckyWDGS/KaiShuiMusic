@@ -19,6 +19,8 @@ import (
 type Options struct {
 	Addr    string // 监听地址，如 127.0.0.1:0（随机端口）或 0.0.0.0:8686（局域网可访问，供手机 / 电视连接）
 	DataDir string // 数据目录，为空时使用系统默认目录
+	// FallbackAddr：Addr 被占用时改用的地址（如 127.0.0.1:0 随机端口），为空则直接报错
+	FallbackAddr string
 }
 
 // Start 启动服务并返回访问地址，服务在后台 goroutine 中运行。
@@ -38,6 +40,10 @@ func Start(opts Options) (string, error) {
 	srv := api.New(svc, lib, webui.FS(), dataDir)
 
 	ln, err := net.Listen("tcp", opts.Addr)
+	if err != nil && opts.FallbackAddr != "" {
+		log.Printf("监听 %s 失败（%v），改用 %s", opts.Addr, err, opts.FallbackAddr)
+		ln, err = net.Listen("tcp", opts.FallbackAddr)
+	}
 	if err != nil {
 		return "", fmt.Errorf("监听 %s 失败: %w", opts.Addr, err)
 	}

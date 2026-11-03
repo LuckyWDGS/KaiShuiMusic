@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	url, err := app.Start(app.Options{Addr: "127.0.0.1:0"})
+	url, err := app.Start(app.Options{Addr: desktopAddr, FallbackAddr: fallbackAddr})
 	if err != nil {
 		log.Fatal(err)
 	}
