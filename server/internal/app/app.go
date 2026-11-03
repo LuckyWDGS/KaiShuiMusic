@@ -33,7 +33,9 @@ func Start(opts Options) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("打开音乐库失败: %w", err)
 	}
-	srv := api.New(music.NewService(), lib, webui.FS(), dataDir)
+	svc := music.NewService(filepath.Join(dataDir, "data", "cache"))
+	go svc.Warmup()
+	srv := api.New(svc, lib, webui.FS(), dataDir)
 
 	ln, err := net.Listen("tcp", opts.Addr)
 	if err != nil {

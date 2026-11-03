@@ -5,10 +5,10 @@ import { Heart, Play, AudioLines, MoreHorizontal } from 'lucide-vue-next'
 import type { Song } from '@/types'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
-import { formatTime, songKey, sourceName } from '@/utils/format'
+import { formatTime, songKey } from '@/utils/format'
 import { useSongActions } from '@/utils/songActions'
 
-const props = defineProps<{ songs: Song[]; showSource?: boolean; showAlbum?: boolean; source?: string }>()
+const props = defineProps<{ songs: Song[]; showAlbum?: boolean; source?: string }>()
 const emit = defineEmits<{ remove: [song: Song] }>()
 // 父组件监听了 remove 时，⋯ 菜单里才有"删除"
 const removable = !!getCurrentInstance()?.vnode.props?.onRemove
@@ -52,7 +52,6 @@ const more = (e: MouseEvent, s: Song) => openSongMenu(e, s, removable ? (song) =
       </button>
       <span class="title">
         <span class="name ellipsis">{{ s.name }}</span>
-        <span v-if="showSource" class="tag">{{ sourceName(s.source) }}</span>
       </span>
       <span class="artist ellipsis">{{ s.artist }}</span>
       <span v-if="showAlbum !== false" class="album ellipsis">{{ s.album }}</span>
@@ -81,10 +80,6 @@ const more = (e: MouseEvent, s: Song) => openSongMenu(e, s, removable ? (song) =
 .like.liked { color: #fe2c55; }
 .title { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .name { font-size: 15px; font-weight: 700; }
-.tag {
-  flex-shrink: 0; font-size: 10px; line-height: 14px; padding: 0 4px; border-radius: 3px; font-weight: 600;
-  color: #20c25e; background: rgba(32, 194, 94, .14);
-}
 .artist, .album { font-size: 14px; color: var(--text-2); }
 .dur { text-align: right; font-size: 14px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .head .dur { font-size: 13px; color: var(--text-3); }

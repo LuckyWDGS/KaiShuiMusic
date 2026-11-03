@@ -12,7 +12,7 @@ import ProgressBar from './ProgressBar.vue'
 import VolumeSlider from './VolumeSlider.vue'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
-import { formatTime, sourceName } from '@/utils/format'
+import { formatTime } from '@/utils/format'
 import { useSongActions } from '@/utils/songActions'
 import { LOCAL_FILE } from '@/api'
 
@@ -25,12 +25,8 @@ const immersive = computed(() => route.name === 'foryou' || player.showNowPlayin
 const modeIcon = computed(() => ({ list: Repeat, single: Repeat1, shuffle: Shuffle })[player.mode])
 const modeTitle = computed(() => ({ list: '列表循环', single: '单曲循环', shuffle: '随机播放' })[player.mode])
 const volIcon = computed(() => (player.muted || player.volume === 0 ? VolumeX : player.volume < 0.5 ? Volume1 : Volume2))
-const sourceLabel = computed(() => {
-  const r = player.resolved
-  if (!r) return ''
-  if (r.song.source === LOCAL_FILE) return '本地'
-  return sourceName(r.song.source) + (r.preview ? '·试听' : '')
-})
+/** 只有在拿不到完整音源、只能试听片段时才提示 */
+const previewOnly = computed(() => !!player.resolved?.preview)
 const timeText = computed(() => `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`)
 
 function dislike() {
@@ -74,7 +70,7 @@ function onWheelVolume(e: WheelEvent) {
     <div class="center">
       <button class="icon-btn ctrl" title="上一首" @click="player.prev()"><SkipBack :size="22" fill="currentColor" /></button>
       <button class="play-btn" :title="player.playing ? '暂停' : '播放'" @click="player.toggle()">
-        <Loader2 v-if="player.loading && player.playing" :size="24" class="spin" />
+        <Loader2 v-if="player.loading" :size="24" class="spin" />
         <Pause v-else-if="player.playing" :size="24" fill="currentColor" />
         <Play v-else :size="24" fill="currentColor" class="play-icon" />
       </button>
@@ -82,7 +78,7 @@ function onWheelVolume(e: WheelEvent) {
     </div>
 
     <div class="right">
-      <span v-if="sourceLabel" class="pill" :title="player.resolved?.switched ? '已自动切换到可完整播放的音源' : '当前音源'">{{ sourceLabel }}</span>
+      <span v-if="previewOnly" class="pill" title="这首歌暂无完整音源，只能试听片段">试听</span>
       <button class="icon-btn text" :class="{ active: player.showNowPlaying }" title="歌词" @click="player.showNowPlaying = !player.showNowPlaying">词</button>
       <button class="icon-btn" :title="modeTitle" @click="player.cycleMode()"><component :is="modeIcon" :size="20" /></button>
       <div class="volume" @wheel.prevent="onWheelVolume">

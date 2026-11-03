@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+// 滚动歌词。默认显示正在播放歌曲的歌词；传入 lines 时显示指定歌词（如推荐页还没开始播放的歌，此时不高亮、不可点击跳转）
+import { computed, nextTick, ref, watch } from 'vue'
 import { usePlayer } from '@/stores/player'
+import type { LyricLine } from '@/utils/lyric'
 
 /** anchor：当前句停在可视区域的位置（0 顶部，0.5 居中） */
-const props = withDefaults(defineProps<{ align?: 'left' | 'center'; anchor?: number; large?: boolean }>(), {
-  align: 'left',
-  anchor: 0.4,
-  large: false,
-})
+const props = withDefaults(
+  defineProps<{ align?: 'left' | 'center'; anchor?: number; large?: boolean; lines?: LyricLine[]; loading?: boolean }>(),
+  { align: 'left', anchor: 0.4, large: false, lines: undefined, loading: false },
+)
 const player = usePlayer()
 const box = ref<HTMLElement>()
 let userScrolling = 0
+
+const preview = computed(() => props.lines !== undefined)
+const list = computed(() => props.lines ?? player.lyrics)
+const activeIndex = computed(() => (preview.value ? -1 : player.lyricIndex))
+const isLoading = computed(() => (preview.value ? props.loading : player.lyricLoading))
 
 function scrollToActive(smooth = true) {
   const el = box.value
@@ -20,28 +26,32 @@ function scrollToActive(smooth = true) {
   el.scrollTo({ top: line.offsetTop - el.clientHeight * props.anchor, behavior: smooth ? 'smooth' : 'auto' })
 }
 
-watch(() => player.lyricIndex, () => nextTick(() => scrollToActive()))
-watch(() => player.lyrics, () => nextTick(() => scrollToActive(false)))
+function seek(time: number) {
+  if (!preview.value) player.seek(time)
+}
+
+watch(activeIndex, () => nextTick(() => scrollToActive()))
+watch(list, () => nextTick(() => scrollToActive(false)))
 </script>
 
 <template>
   <div
     ref="box"
     class="lyric"
-    :class="[`align-${props.align}`, { large }]"
+    :class="[`align-${props.align}`, { large, preview }]"
     :style="{ '--anchor': props.anchor }"
     @wheel.passive="userScrolling = Date.now()"
   >
-    <div v-if="player.lyricLoading && !player.lyrics.length" class="tip">歌词加载中…</div>
-    <div v-else-if="!player.lyrics.length" class="tip">{{ player.current ? '纯音乐，请欣赏' : '' }}</div>
+    <div v-if="isLoading && !list.length" class="tip">歌词加载中…</div>
+    <div v-else-if="!list.length" class="tip">纯音乐，请欣赏</div>
     <template v-else>
       <div class="pad-top"></div>
       <p
-        v-for="(l, i) in player.lyrics"
+        v-for="(l, i) in list"
         :key="i"
         class="line"
-        :class="{ active: i === player.lyricIndex }"
-        @click="player.seek(l.time)"
+        :class="{ active: i === activeIndex }"
+        @click="seek(l.time)"
       >{{ l.text || '♪' }}</p>
       <div class="pad-bottom"></div>
     </template>
@@ -51,7 +61,7 @@ watch(() => player.lyrics, () => nextTick(() => scrollToActive(false)))
 <style scoped>
 .lyric {
   height: 100%; overflow-y: auto; scrollbar-width: none; position: relative;
-  mask-image: linear-gradient(#000 0, #000 55%, transparent 100%);
+  mask-image: linear-gradient(transparent 0, #000 12%, #000 70%, transparent 100%);
 }
 .lyric::-webkit-scrollbar { display: none; }
 .pad-top { height: calc(var(--anchor) * 100%); }
@@ -62,6 +72,8 @@ watch(() => player.lyrics, () => nextTick(() => scrollToActive(false)))
 }
 .line:hover { color: rgba(255, 255, 255, .7); }
 .line.active { color: #fff; }
+.preview .line { cursor: default; color: rgba(255, 255, 255, .55); }
+.preview .line:first-of-type { color: rgba(255, 255, 255, .85); }
 .large .line { font-size: 28px; line-height: 42px; padding: 11px 0; }
 .align-center { text-align: center; }
 .tip { padding-top: calc(var(--anchor) * 100%); color: rgba(255, 255, 255, .6); font-size: 22px; font-weight: 700; line-height: 54px; }

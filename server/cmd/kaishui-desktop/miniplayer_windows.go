@@ -33,18 +33,24 @@ var (
 	procReleaseDC       = user32.NewProc("ReleaseDC")
 	procGetDpiForWindow = user32.NewProc("GetDpiForWindow")
 	procGetPixel        = syscall.NewLazyDLL("gdi32.dll").NewProc("GetPixel")
+	procRedrawWindow    = user32.NewProc("RedrawWindow")
 )
 
 const (
-	gwlStyle      = ^uintptr(15) // -16
-	gwlExStyle    = ^uintptr(19) // -20
-	wsChild       = 0x40000000
-	wsClipSibling = 0x04000000
-	wsExToolWin   = 0x00000080
-	wsExAppWin    = 0x00040000
-	swHide        = 0
-	swShowNA      = 8
-	wmDestroy     = 0x0002
+	gwlStyle       = ^uintptr(15) // -16
+	gwlExStyle     = ^uintptr(19) // -20
+	wsChild        = 0x40000000
+	wsClipSibling  = 0x04000000
+	wsExToolWin    = 0x00000080
+	wsExAppWin     = 0x00040000
+	swHide         = 0
+	swShowNA       = 8
+	wmDestroy      = 0x0002
+	rdwInvalidate  = 0x0001
+	rdwErase       = 0x0004
+	rdwAllChildren = 0x0080
+	rdwUpdateNow   = 0x0100
+	rdwFrame       = 0x0400
 
 	miniWidth  = 300 // 逻辑像素
 	miniLeft   = 110 // 居中任务栏时放在左侧小组件（天气）之后
@@ -74,6 +80,8 @@ func (m *miniPlayer) SetVisible(on bool) {
 		m.visible = false
 		if m.hwnd != 0 {
 			procShowWindow.Call(m.hwnd, swHide)
+			// Windows 11 任务栏隐藏子窗口后不一定重绘，会残留播放器的画面，强制重绘一次
+			procRedrawWindow.Call(m.tray, 0, 0, rdwInvalidate|rdwErase|rdwAllChildren|rdwFrame|rdwUpdateNow)
 		}
 		return
 	}
@@ -116,10 +124,7 @@ func (m *miniPlayer) create() {
 	_ = w.Bind("kaishuiMini", func(action string) []string {
 		switch action {
 		case "show":
-			if iconic, _, _ := procIsIconic.Call(m.mainHwnd); iconic != 0 {
-				procShowWindow.Call(m.mainHwnd, swRestore)
-			}
-			procSetForeground.Call(m.mainHwnd)
+			showMain(m.mainHwnd)
 		case "colors":
 			bg, fg := m.colors()
 			return []string{bg, fg}

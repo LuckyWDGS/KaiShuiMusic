@@ -3,6 +3,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import PlaylistHead from '@/components/PlaylistHead.vue'
+import SvipBanner from '@/components/SvipBanner.vue'
 import SongList from '@/components/SongList.vue'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
@@ -26,10 +27,11 @@ function remove(s: Song) {
 <template>
   <div class="page">
     <PlaylistHead :title="title" :cover="songs[0]?.cover" :source="songs[0]?.source" :count="songs.length" :menu="menu" @play="player.playList(songs, 0, 'list', title)" />
+    <SvipBanner />
     <div v-if="!songs.length" class="empty">
       {{ isLikes ? '还没有喜欢的歌曲，听到喜欢的歌点一下 ♥ 吧' : '还没有播放记录' }}
     </div>
-    <SongList v-else-if="isLikes" :songs="songs" :source="title" show-source @remove="remove" />
-    <SongList v-else :songs="songs" :source="title" show-source />
+    <SongList v-else-if="isLikes" :songs="songs" :source="title" @remove="remove" />
+    <SongList v-else :songs="songs" :source="title" />
   </div>
 </template>

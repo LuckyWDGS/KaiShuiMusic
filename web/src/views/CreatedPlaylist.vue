@@ -37,7 +37,7 @@ const removeSong = (s: Song) => lib.removeFromPlaylist(id, s)
       @play="player.playList(playlist.songs, 0, 'list', playlist.name)"
     />
     <div v-if="!playlist.songs.length" class="empty">歌单还是空的，播放时点击播放条上的“收藏”即可添加</div>
-    <SongList v-else :songs="playlist.songs" :source="playlist.name" show-source @remove="removeSong" />
+    <SongList v-else :songs="playlist.songs" :source="playlist.name" @remove="removeSong" />
   </div>
   <div v-else class="empty">歌单不存在</div>
 </template>

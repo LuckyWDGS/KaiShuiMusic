@@ -15,8 +15,13 @@ export type QueueContext = 'feed' | 'list'
 const STORE_KEY = 'kaishui.player'
 
 export const usePlayer = defineStore('player', () => {
-  const audio = new Audio()
-  audio.preload = 'auto'
+  // 两个音频元素轮换：audio 正在播放，standby 在后台提前缓冲下一首（或推荐页待播的歌），
+  // 切歌时直接换成 standby，省去重新连接音源、缓冲开头的几秒等待。
+  const audios = [new Audio(), new Audio()]
+  for (const a of audios) a.preload = 'auto'
+  let audio = audios[0]
+  let standby = audios[1]
+  let standbyUrl = ''
 
   const queue = ref<Song[]>([])
   const index = ref(-1)
@@ -81,7 +86,7 @@ export const usePlayer = defineStore('player', () => {
       const res = await resolveSong(song)
       if (token !== loadToken) return
       resolved.value = res
-      audio.src = streamUrl(res.song)
+      useUrl(streamUrl(res.song))
       if (res.preview) toast('该歌曲暂无完整音源，仅可试听片段')
       if (autoplay) {
         await audio.play().catch((e) => {
@@ -116,9 +121,50 @@ export const usePlayer = defineStore('player', () => {
     }
   }
 
+  /** 切到指定地址：standby 已经缓冲好这首就直接换过去，否则在当前元素上加载 */
+  function useUrl(url: string) {
+    if (standbyUrl === url && !standby.error) {
+      const old = audio
+      audio = standby
+      standby = old
+      standbyUrl = ''
+      old.pause()
+      old.removeAttribute('src')
+      old.load()
+      audio.currentTime = 0
+      if (isFinite(audio.duration) && audio.duration > 0) duration.value = audio.duration
+      return
+    }
+    audio.src = url
+  }
+
+  /** 让 standby 预先缓冲某首歌 */
+  function buffer(song: Song) {
+    resolveSong(song).then((res) => {
+      if (current.value && songKey(current.value) === songKey(song) && !audio.paused) return
+      const url = streamUrl(res.song)
+      if (standbyUrl === url || audio.getAttribute('src') === url) return
+      standbyUrl = url
+      standby.src = url
+      standby.load()
+    }, () => {})
+  }
+
+  /** 提前解析后面两首的播放地址（换源可能要几秒），并缓冲下一首的音频，切歌时即可秒播 */
   function prefetchNext() {
-    const n = queue.value[nextIndex()]
-    if (n && n !== current.value) resolveSong(n).catch(() => {})
+    const len = queue.value.length
+    const first = nextIndex()
+    if (first < 0) return
+    const nextSong = queue.value[first]
+    if (nextSong && nextSong !== current.value) buffer(nextSong)
+    const after = queue.value[(first + 1) % len]
+    if (after && after !== current.value) prepare(after)
+  }
+
+  /** 后台预先解析某首歌的播放地址（结果缓存）；withAudio 时同时缓冲音频（推荐页待播的歌） */
+  function prepare(song: Song, withAudio = false) {
+    if (withAudio) buffer(song)
+    else resolveSong(song).catch(() => {})
   }
 
   function onFailed(msg?: string) {
@@ -220,8 +266,11 @@ export const usePlayer = defineStore('player', () => {
 
   function clearQueue() {
     loadToken++
-    audio.pause()
-    audio.removeAttribute('src')
+    for (const a of audios) {
+      a.pause()
+      a.removeAttribute('src')
+    }
+    standbyUrl = ''
     queue.value = []
     index.value = -1
     resolved.value = null
@@ -309,22 +358,26 @@ export const usePlayer = defineStore('player', () => {
 
   // ---------- audio 事件 ----------
 
-  audio.addEventListener('play', () => (playing.value = true))
-  audio.addEventListener('pause', () => (playing.value = false))
-  audio.addEventListener('playing', () => (loading.value = false))
-  audio.addEventListener('waiting', () => (loading.value = true))
-  audio.addEventListener('canplay', () => (loading.value = false))
-  audio.addEventListener('timeupdate', () => (currentTime.value = audio.currentTime))
-  audio.addEventListener('durationchange', () => {
+  /** 两个元素都监听，但只处理当前正在播放（active）的那个，后台缓冲的元素的事件忽略 */
+  function onAudio(type: string, fn: () => void) {
+    for (const a of audios) a.addEventListener(type, () => a === audio && fn())
+  }
+  onAudio('play', () => (playing.value = true))
+  onAudio('pause', () => (playing.value = false))
+  onAudio('playing', () => (loading.value = false))
+  onAudio('waiting', () => (loading.value = true))
+  onAudio('canplay', () => (loading.value = false))
+  onAudio('timeupdate', () => (currentTime.value = audio.currentTime))
+  onAudio('durationchange', () => {
     if (isFinite(audio.duration) && audio.duration > 0) duration.value = audio.duration
   })
-  audio.addEventListener('ended', () => {
+  onAudio('ended', () => {
     if (mode.value === 'single') {
       audio.currentTime = 0
       audio.play().catch(() => {})
     } else advance()
   })
-  audio.addEventListener('error', () => {
+  onAudio('error', () => {
     if (!audio.getAttribute('src') || !resolved.value) return
     loading.value = false
     onFailed()
@@ -334,8 +387,10 @@ export const usePlayer = defineStore('player', () => {
   restore()
 
   watch([volume, muted], () => {
-    audio.volume = volume.value
-    audio.muted = muted.value
+    for (const a of audios) {
+      a.volume = volume.value
+      a.muted = muted.value
+    }
     persist()
   }, { immediate: true })
   watch(mode, persist)
@@ -398,9 +453,9 @@ export const usePlayer = defineStore('player', () => {
   }
 
   return {
-    audio, queue, index, context, mode, playing, loading, currentTime, duration, volume, muted,
+    queue, index, context, mode, playing, loading, currentTime, duration, volume, muted,
     resolved, lyrics, lyricIndex, lyricLoading, showNowPlaying, showQueue, current,
     playList, play, insertNext, removeAt, clearQueue, toggle, next, prev, seek, setVolume, cycleMode,
-    load, loadMoreFeed, queueSource, station, playStation, leaveStation, feedPreview, previewActive, startPreview,
+    load, loadMoreFeed, queueSource, station, playStation, leaveStation, feedPreview, previewActive, startPreview, prepare,
   }
 })

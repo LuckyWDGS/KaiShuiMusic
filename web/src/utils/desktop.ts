@@ -1,5 +1,6 @@
 // 桌面壳（WebView2 无边框窗口）注入的窗口控制接口；在浏览器中运行时不存在
-type WinAction = 'drag' | 'min' | 'max' | 'close' | 'mini:on' | 'mini:off'
+/** tip:<0|1>:<歌名 - 歌手> 更新托盘图标的悬停提示和播放状态 */
+type WinAction = 'drag' | 'min' | 'max' | 'close' | 'mini:on' | 'mini:off' | `tip:${string}`
 
 const win = () => (window as unknown as { kaishuiWin?: (a: WinAction) => Promise<void> }).kaishuiWin
 

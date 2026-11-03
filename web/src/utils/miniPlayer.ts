@@ -34,9 +34,24 @@ export function toggleMini() {
   winAction(miniOn.value ? 'mini:on' : 'mini:off')
 }
 
-/** 主窗口启动时调用：恢复开关状态并开始同步 */
+/** 系统托盘：右键菜单的播放控制，以及把正在播放的歌名同步到托盘图标的悬停提示 */
+function initTraySync() {
+  const player = usePlayer()
+  ;(window as unknown as { __kaishuiTray: (cmd: string) => void }).__kaishuiTray = (cmd) => {
+    if (cmd === 'toggle') player.toggle()
+    else if (cmd === 'next') player.next()
+    else if (cmd === 'prev') player.prev()
+  }
+  watch(() => [player.current, player.playing] as const, ([song, playing]) => {
+    winAction(`tip:${playing ? 1 : 0}:${song ? `${song.name} - ${song.artist}` : ''}`)
+  }, { immediate: true })
+}
+
+/** 主窗口启动时调用：托盘同步、恢复任务栏播放器开关并开始同步 */
 export function initMiniSync() {
-  if (!isDesktopShell() || typeof BroadcastChannel === 'undefined') return
+  if (!isDesktopShell()) return
+  initTraySync()
+  if (typeof BroadcastChannel === 'undefined') return
   const player = usePlayer()
   const lib = useLibrary()
   const ch = new BroadcastChannel(MINI_CHANNEL)

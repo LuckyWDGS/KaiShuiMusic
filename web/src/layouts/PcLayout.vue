@@ -4,8 +4,9 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Play, Compass, Heart, Clock3, Download, ListMusic, Plus, Settings, ChevronLeft, ChevronRight, Star, Minus, Square, X,
-  PictureInPicture2,
+  PictureInPicture2, Crown,
 } from 'lucide-vue-next'
+import { toast } from '@/stores/toast'
 import { isDesktopShell, onTitleMouseDown, winAction } from '@/utils/desktop'
 import { miniOn, toggleMini } from '@/utils/miniPlayer'
 import SearchBox from '@/components/SearchBox.vue'
@@ -88,6 +89,9 @@ const mine = [
         </div>
         <SearchBox class="search" />
         <div class="top-right">
+          <button class="svip-pill" title="开水音乐全部歌曲免费畅听" @click="toast('开水音乐全部歌曲免费畅听，无需开通会员')">
+            <Crown :size="13" />SVIP 畅听中
+          </button>
           <RouterLink to="/settings" class="icon-btn" title="设置" @click="player.showNowPlaying = false"><Settings :size="18" /></RouterLink>
           <template v-if="desktop">
             <button class="icon-btn mini-toggle" :class="{ on: miniOn }" :title="miniOn ? '关闭任务栏播放器' : '开启任务栏播放器'" @click="toggleMini">
@@ -150,6 +154,12 @@ nav::-webkit-scrollbar { display: none; }
 .top-right .icon-btn { color: var(--text-2); width: 34px; height: 34px; border-radius: 8px; }
 .top-right .icon-btn:hover { color: var(--text); }
 .win.close:hover { background: #e81123; color: #fff; }
+.svip-pill {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; margin-right: 6px; border-radius: 13px;
+  font-size: 12px; font-weight: 700; color: #3a2a10; background: linear-gradient(90deg, #f6dfae, #e2b86b);
+  white-space: nowrap; flex-shrink: 0;
+}
+.svip-pill:hover { filter: brightness(1.06); }
 .mini-toggle.on { color: #121212 !important; background: rgba(255, 255, 255, .85); }
 .sep { width: 1px; height: 18px; background: rgba(255, 255, 255, .2); margin: 0 6px; }
 .view { flex: 1; min-height: 0; overflow-y: auto; position: relative; }

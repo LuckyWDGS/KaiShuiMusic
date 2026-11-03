@@ -1,9 +1,37 @@
 package music
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
+
+// loadDisk 读取磁盘缓存（超过 maxAge 视为过期），用于程序重启后秒开
+func (s *Service) loadDisk(name string, maxAge time.Duration, v any) bool {
+	if s.cacheDir == "" {
+		return false
+	}
+	p := filepath.Join(s.cacheDir, name)
+	info, err := os.Stat(p)
+	if err != nil || time.Since(info.ModTime()) > maxAge {
+		return false
+	}
+	b, err := os.ReadFile(p)
+	return err == nil && json.Unmarshal(b, v) == nil
+}
+
+func (s *Service) saveDisk(name string, v any) {
+	if s.cacheDir == "" {
+		return
+	}
+	b, err := json.Marshal(v)
+	if err != nil || os.MkdirAll(s.cacheDir, 0o755) != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(s.cacheDir, name), b, 0o644)
+}
 
 // ttlCache 是一个极简的内存缓存，用于缓存首页、榜单、歌单等变化不频繁的数据，
 // 避免每次打开页面都去请求上游平台。

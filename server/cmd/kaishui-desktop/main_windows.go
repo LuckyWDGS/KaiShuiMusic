@@ -13,6 +13,7 @@ import (
 
 	"github.com/LuckyWDGS/KaiShuiMusic/server/internal/app"
 	"github.com/jchv/go-webview2"
+	"golang.org/x/sys/windows"
 )
 
 // 窗口尺寸（逻辑像素，按系统缩放换算成物理像素）
@@ -25,6 +26,14 @@ const (
 )
 
 func main() {
+	// 只允许运行一个实例：已经在运行（可能隐藏在托盘）时，把已有窗口调出来后退出
+	if !acquireSingleInstance() {
+		if h := findWindow2("webview", "开水音乐"); h != 0 {
+			showMain(h)
+		}
+		return
+	}
+
 	url, err := app.Start(app.Options{Addr: "127.0.0.1:0"})
 	if err != nil {
 		messageBox("开水音乐", "启动失败: "+err.Error(), 0)
@@ -52,10 +61,34 @@ func main() {
 	w.SetSize(int(winMinWidth*scale), int(winMinHeight*scale), webview2.HintMin)
 	hwnd := uintptr(w.Window())
 	makeFrameless(hwnd)
+	tray = newTrayIcon(w, hwnd)
+	defer tray.Remove()
 	mini := newMiniPlayer(w, hwnd, url)
 	bindWindowControls(w, hwnd, mini)
 	w.Navigate(url + "/?platform=pc")
 	w.Run()
+}
+
+var instanceMutex windows.Handle
+
+func acquireSingleInstance() bool {
+	name, _ := windows.UTF16PtrFromString("KaiShuiMusic.SingleInstance")
+	h, err := windows.CreateMutex(nil, false, name)
+	if err == windows.ERROR_ALREADY_EXISTS {
+		if h != 0 {
+			windows.CloseHandle(h)
+		}
+		return false
+	}
+	instanceMutex = h // 保持句柄到进程退出
+	return true
+}
+
+func findWindow2(class, title string) uintptr {
+	c, _ := syscall.UTF16PtrFromString(class)
+	t, _ := syscall.UTF16PtrFromString(title)
+	h, _, _ := procFindWindow.Call(uintptr(unsafe.Pointer(c)), uintptr(unsafe.Pointer(t)))
+	return h
 }
 
 // systemScale 返回系统缩放比例（如 175% → 1.75）。程序清单声明了 Per-Monitor V2 DPI 感知，窗口尺寸需要自己换算。

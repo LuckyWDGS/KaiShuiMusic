@@ -105,10 +105,13 @@ func findSwitchSong(orig model.Song) *model.Song {
 	}
 	keyword := strings.TrimSpace(name + " " + artist)
 
+	// 各平台并行搜索。某个平台的最佳结果高度匹配且确认可播放时立即返回，不再等待较慢的平台；
+	// 否则等所有平台搜完，按匹配度排序后再逐个校验。
 	var (
 		mu         sync.Mutex
 		wg         sync.WaitGroup
 		candidates []switchCandidate
+		fast       = make(chan model.Song, len(switchSources))
 	)
 	for _, src := range switchSources {
 		if src == orig.Source {
@@ -121,50 +124,40 @@ func findSwitchSong(orig model.Song) *model.Song {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := withTimeout(6*time.Second, func() ([]model.Song, error) { return fn(keyword) })
-			if (err != nil || len(res) == 0) && artist != "" {
-				res, _ = withTimeout(6*time.Second, func() ([]model.Song, error) { return fn(name) })
+			found := searchCandidates(fn, src, keyword, name, artist, orig.Duration)
+			if len(found) == 0 {
+				return
 			}
-			for i := 0; i < len(res) && i < switchCandidatesPerSource; i++ {
-				cand := res[i]
-				cand.Source = src
-				score := core.CalcSongSimilarity(name, artist, cand.Name, cand.Artist)
-				if score <= 0 {
-					continue
-				}
-				durDiff := 0
-				if orig.Duration > 0 && cand.Duration > 0 {
-					if !core.IsDurationClose(orig.Duration, cand.Duration) {
-						continue
-					}
-					durDiff = core.IntAbs(orig.Duration - cand.Duration)
-				}
-				mu.Lock()
-				candidates = append(candidates, switchCandidate{song: cand, score: score, durDiff: durDiff})
-				mu.Unlock()
+			sortCandidates(found)
+			mu.Lock()
+			candidates = append(candidates, found...)
+			mu.Unlock()
+			best := found[0]
+			if best.score >= switchHighConfidence && (orig.Duration == 0 || best.durDiff <= 3) && core.ValidatePlayable(&best.song) {
+				fast <- best.song
 			}
 		}()
 	}
-	wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case song := <-fast:
+		return withCover(song, orig)
+	case <-done:
+	}
+	select {
+	case song := <-fast: // 所有平台结束前最后一个高匹配结果
+		return withCover(song, orig)
+	default:
+	}
 	if len(candidates) == 0 {
 		return nil
 	}
-
-	// 保持换源平台优先级：同分时按 switchSources 顺序
-	rank := make(map[string]int, len(switchSources))
-	for i, src := range switchSources {
-		rank[src] = i
-	}
-	sort.SliceStable(candidates, func(i, j int) bool {
-		a, b := candidates[i], candidates[j]
-		if a.score != b.score {
-			return a.score > b.score
-		}
-		if a.durDiff != b.durDiff {
-			return a.durDiff < b.durDiff
-		}
-		return rank[a.song.Source] < rank[b.song.Source]
-	})
+	sortCandidates(candidates)
 	if len(candidates) > switchValidateLimit {
 		candidates = candidates[:switchValidateLimit]
 	}
@@ -181,13 +174,59 @@ func findSwitchSong(orig model.Song) *model.Song {
 	wg.Wait()
 	for i, ok := range valid {
 		if ok {
-			song := candidates[i].song
-			// 保留原歌曲更清晰的封面
-			if song.Cover == "" {
-				song.Cover = orig.Cover
-			}
-			return &song
+			return withCover(candidates[i].song, orig)
 		}
 	}
 	return nil
+}
+
+func searchCandidates(fn core.SearchFunc, src, keyword, name, artist string, duration int) []switchCandidate {
+	res, err := withTimeout(6*time.Second, func() ([]model.Song, error) { return fn(keyword) })
+	if (err != nil || len(res) == 0) && artist != "" {
+		res, _ = withTimeout(6*time.Second, func() ([]model.Song, error) { return fn(name) })
+	}
+	var out []switchCandidate
+	for i := 0; i < len(res) && i < switchCandidatesPerSource; i++ {
+		cand := res[i]
+		cand.Source = src
+		score := core.CalcSongSimilarity(name, artist, cand.Name, cand.Artist)
+		if score <= 0 {
+			continue
+		}
+		durDiff := 0
+		if duration > 0 && cand.Duration > 0 {
+			if !core.IsDurationClose(duration, cand.Duration) {
+				continue
+			}
+			durDiff = core.IntAbs(duration - cand.Duration)
+		}
+		out = append(out, switchCandidate{song: cand, score: score, durDiff: durDiff})
+	}
+	return out
+}
+
+// sortCandidates 按匹配度、时长差排序；同分时按 switchSources 的平台优先级
+func sortCandidates(c []switchCandidate) {
+	rank := make(map[string]int, len(switchSources))
+	for i, src := range switchSources {
+		rank[src] = i
+	}
+	sort.SliceStable(c, func(i, j int) bool {
+		a, b := c[i], c[j]
+		if a.score != b.score {
+			return a.score > b.score
+		}
+		if a.durDiff != b.durDiff {
+			return a.durDiff < b.durDiff
+		}
+		return rank[a.song.Source] < rank[b.song.Source]
+	})
+}
+
+// withCover 换源后的歌曲没有封面时沿用原歌曲的封面
+func withCover(song, orig model.Song) *model.Song {
+	if song.Cover == "" {
+		song.Cover = orig.Cover
+	}
+	return &song
 }

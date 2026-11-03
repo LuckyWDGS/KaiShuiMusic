@@ -46,7 +46,7 @@ h1 { font-size: 20px; font-weight: 700; margin: 0 0 10px; }
 .actions { display: flex; align-items: center; gap: 16px; margin-top: auto; }
 .play {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 6px;
-  background: #e9e9e9; color: #121212; font-size: 14px; font-weight: 700;
+  background: #e9e9e9; color: #121212; font-size: 14px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
 }
 .play:hover { background: #fff; }
 .play:disabled { background: #2c2c2c; color: var(--text-3); cursor: default; }

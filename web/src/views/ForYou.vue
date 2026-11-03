@@ -48,10 +48,12 @@ function onKey(e: KeyboardEvent) {
   if (e.key === 'ArrowUp') { e.preventDefault(); go(-1) }
 }
 
-// 推荐页展示的歌曲还没播放时，主题色也跟随它
+// 推荐页展示的歌曲还没播放时：主题色跟随它，并在后台提前解析播放地址，点播放即可开始
 watch(song, (s) => {
-  if (active.value && s && !inFeed.value) updateThemeFromCover(s.cover, s.source)
-})
+  if (!s || inFeed.value) return
+  player.prepare(s, true)
+  if (active.value) updateThemeFromCover(s.cover, s.source)
+}, { immediate: true })
 
 onMounted(() => {
   if (!player.feedPreview.length) loadFeed()

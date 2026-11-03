@@ -3,9 +3,9 @@ import { useRouter } from 'vue-router'
 import { Play, Headphones } from 'lucide-vue-next'
 import CoverImg from './CoverImg.vue'
 import type { DetailKind, Playlist, TopList } from '@/types'
-import { formatCount, sourceName } from '@/utils/format'
+import { formatCount } from '@/utils/format'
 
-const props = defineProps<{ item: Playlist | TopList; kind?: DetailKind; showSource?: boolean }>()
+const props = defineProps<{ item: Playlist | TopList; kind?: DetailKind }>()
 const router = useRouter()
 
 function open() {
@@ -27,10 +27,7 @@ const plays = () => formatCount((props.item as Playlist).play_count)
       <span class="play"><Play :size="20" fill="currentColor" /></span>
     </div>
     <div class="name">{{ item.name }}</div>
-    <div v-if="showSource || (kind === 'toplist' && (item as TopList).update_frequency)" class="sub ellipsis">
-      <template v-if="kind === 'toplist' && (item as TopList).update_frequency">{{ (item as TopList).update_frequency }}</template>
-      <template v-else>{{ sourceName(item.source) }}</template>
-    </div>
+    <div v-if="kind === 'toplist' && (item as TopList).update_frequency" class="sub ellipsis">{{ (item as TopList).update_frequency }}</div>
   </button>
 </template>
 

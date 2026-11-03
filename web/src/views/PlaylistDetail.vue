@@ -4,13 +4,13 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
 import PlaylistHead from '@/components/PlaylistHead.vue'
+import SvipBanner from '@/components/SvipBanner.vue'
 import SongList from '@/components/SongList.vue'
 import { api } from '@/api'
 import type { DetailKind, Playlist, Song } from '@/types'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
 import type { MenuItem } from '@/stores/menu'
-import { sourceName } from '@/utils/format'
 
 const route = useRoute()
 const player = usePlayer()
@@ -59,12 +59,13 @@ onMounted(load)
       :title="info.name"
       :cover="info.cover"
       :source="source"
-      :sub="`${kindLabel} · ${sourceName(source)}`"
+      :sub="kindLabel"
       :desc="info.description"
       :count="songs.length"
       :menu="menu"
       @play="player.playList(songs, 0, 'list', info.name)"
     />
+    <SvipBanner />
     <div v-if="loading" class="empty"><Loader2 :size="26" class="spin" /></div>
     <div v-else-if="error" class="empty">
       <p>{{ error }}</p>

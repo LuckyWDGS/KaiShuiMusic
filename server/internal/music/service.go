@@ -33,11 +33,21 @@ var (
 
 type Service struct {
 	cache     *ttlCache
+	cacheDir  string   // 磁盘缓存目录（频道列表等），为空则不落盘
 	sodaInfos sync.Map // song id -> sodaInfoEntry
+	fastStart sync.Map // 推荐流 / 频道 -> 预热时确认可直接播放的歌曲 id（放在第一首）
 }
 
-func NewService() *Service {
-	return &Service{cache: newTTLCache(512)}
+func NewService(cacheDir string) *Service {
+	return &Service{cache: newTTLCache(512), cacheDir: cacheDir}
+}
+
+// Warmup 后台预热常用数据：推荐流、听歌模式频道及其歌曲，让首次打开各页面不用等待上游
+func (s *Service) Warmup() {
+	if songs, err := s.Feed(1); err == nil {
+		s.findFastStart(songs, "feed")
+	}
+	s.WarmStations()
 }
 
 // ---------- 首页 ----------
@@ -162,7 +172,12 @@ func (s *Service) Feed(page int) ([]model.Song, error) {
 		start %= len(pool)
 	}
 	end := min(start+feedPageSize, len(pool))
-	return pool[start:end], nil
+	out := append([]model.Song(nil), pool[start:end]...)
+	if start == 0 {
+		// 第一首放预热时确认可直接播放的歌（无需换源），打开推荐页后能最快开始播放
+		s.putFastFirst(out, "feed")
+	}
+	return out, nil
 }
 
 // ---------- 音乐馆 ----------
