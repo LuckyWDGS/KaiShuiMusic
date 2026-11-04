@@ -7,6 +7,7 @@ import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
 import { formatTime, songKey } from '@/utils/format'
 import { useSongActions } from '@/utils/songActions'
+import { platform } from '@/platform'
 
 const props = defineProps<{ songs: Song[]; showAlbum?: boolean; source?: string }>()
 const emit = defineEmits<{ remove: [song: Song] }>()
@@ -18,6 +19,8 @@ const { openSongMenu } = useSongActions()
 
 const isCurrent = (s: Song) => !!player.current && songKey(player.current) === songKey(s)
 const playAt = (i: number) => player.playList(props.songs, i, 'list', props.source)
+// PC 双击播放，手机点一下播放
+const tapPlay = (i: number) => platform.value === 'mobile' && playAt(i)
 const more = (e: MouseEvent, s: Song) => openSongMenu(e, s, removable ? (song) => emit('remove', song) : undefined)
 </script>
 
@@ -38,6 +41,7 @@ const more = (e: MouseEvent, s: Song) => openSongMenu(e, s, removable ? (song) =
       class="row"
       :class="{ current: isCurrent(s) }"
       tabindex="0"
+      @click="tapPlay(i)"
       @dblclick="playAt(i)"
       @keydown.enter="playAt(i)"
       @contextmenu.prevent="more($event, s)"
@@ -45,13 +49,14 @@ const more = (e: MouseEvent, s: Song) => openSongMenu(e, s, removable ? (song) =
       <span class="idx">
         <AudioLines v-if="isCurrent(s) && player.playing" :size="16" class="eq" />
         <span v-else class="num">{{ i + 1 }}</span>
-        <button class="hover-play" title="播放" @click="playAt(i)"><Play :size="15" fill="currentColor" /></button>
+        <button class="hover-play" title="播放" @click.stop="playAt(i)"><Play :size="15" fill="currentColor" /></button>
       </span>
       <button class="like" :class="{ liked: lib.isLiked(s) }" :title="lib.isLiked(s) ? '取消喜欢' : '喜欢'" @click.stop="lib.toggleLike(s)">
         <Heart :size="19" :fill="lib.isLiked(s) ? 'currentColor' : 'none'" />
       </button>
       <span class="title">
         <span class="name ellipsis">{{ s.name }}</span>
+        <span class="sub ellipsis">{{ s.artist }}</span>
       </span>
       <span class="artist ellipsis">{{ s.artist }}</span>
       <span v-if="showAlbum !== false" class="album ellipsis">{{ s.album }}</span>
@@ -79,6 +84,7 @@ const more = (e: MouseEvent, s: Song) => openSongMenu(e, s, removable ? (song) =
 .like:hover { color: var(--text); }
 .like.liked { color: #fe2c55; }
 .title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sub { display: none; }
 .name { font-size: 15px; font-weight: 700; }
 .artist, .album { font-size: 14px; color: var(--text-2); }
 .dur { text-align: right; font-size: 14px; color: var(--text-2); font-variant-numeric: tabular-nums; }
@@ -87,7 +93,13 @@ const more = (e: MouseEvent, s: Song) => openSongMenu(e, s, removable ? (song) =
 .more:hover { color: var(--text); background: rgba(255, 255, 255, .08); }
 @media (max-width: 760px) {
   .song-list { margin: 0 -14px; }
-  .row, .no-album .row { grid-template-columns: 32px 28px minmax(0, 1fr) 40px !important; padding: 0 14px; }
-  .row > :nth-child(4), .row > :nth-child(5), .row > .dur { display: none; }
+  .row, .no-album .row { grid-template-columns: 26px 28px minmax(0, 1fr) 36px !important; padding: 0 8px 0 14px; height: 58px; }
+  .head { display: none; }
+  .row > .artist, .row > .album, .row > .dur { display: none; }
+  .title { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .title .name { max-width: 100%; font-size: 15px; }
+  .sub { display: block; max-width: 100%; font-size: 12px; color: var(--text-2); }
+  .row:not(.head):hover .num, .row:not(.head):hover .eq { display: inline; }
+  .row:not(.head):hover .hover-play { display: none; }
 }
 </style>

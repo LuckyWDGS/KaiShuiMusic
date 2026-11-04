@@ -5,6 +5,7 @@ import { ListEnd, Trash2, AudioLines } from 'lucide-vue-next'
 import CoverImg from './CoverImg.vue'
 import { usePlayer } from '@/stores/player'
 import { songKey } from '@/utils/format'
+import { platform } from '@/platform'
 
 const player = usePlayer()
 const panel = ref<HTMLElement>()
@@ -15,6 +16,9 @@ watch(() => player.showQueue, (v) => {
 })
 
 // 点击面板外部收起
+// PC 双击播放，手机点一下播放
+const tapPlay = (i: number) => platform.value === 'mobile' && player.load(i)
+
 const onDown = (e: MouseEvent) => {
   const t = e.target as HTMLElement
   if (!player.showQueue || panel.value?.contains(t) || t.closest('.menu, [title="播放列表"]')) return
@@ -41,6 +45,7 @@ onBeforeUnmount(() => window.removeEventListener('mousedown', onDown))
           :key="songKey(s) + i"
           class="item"
           :class="{ current: i === player.index }"
+          @click="tapPlay(i)"
           @dblclick="player.load(i)"
         >
           <div class="cover">
@@ -83,4 +88,10 @@ header { padding: 14px 20px 10px; }
 .item:hover .rm { display: flex; }
 .slide-enter-active, .slide-leave-active { transition: transform .25s ease; }
 .slide-enter-from, .slide-leave-to { transform: translateX(100%); }
+/* 手机：从底部弹出，删除按钮常驻 */
+@media (max-width: 760px) {
+  .queue { top: 28%; width: 100%; z-index: 50; border-radius: 16px 16px 0 0; padding-bottom: var(--safe-bottom); box-shadow: 0 -12px 40px rgba(0, 0, 0, .4); }
+  .rm { display: flex; background: none; }
+  .slide-enter-from, .slide-leave-to { transform: translateY(100%); }
+}
 </style>

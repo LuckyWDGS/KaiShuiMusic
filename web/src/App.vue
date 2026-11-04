@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { updateThemeFromCover } from '@/stores/theme'
+import { useRouter } from 'vue-router'
 import { initMiniSync } from '@/utils/miniPlayer'
+import { initAppShell } from '@/utils/appShell'
 import PcLayout from '@/layouts/PcLayout.vue'
 import MobileLayout from '@/layouts/MobileLayout.vue'
 import LibraryDialogs from '@/components/LibraryDialogs.vue'
@@ -13,6 +15,7 @@ import { toastState } from '@/stores/toast'
 
 const player = usePlayer()
 const lib = useLibrary()
+const router = useRouter()
 
 // 全局快捷键：空格 播放/暂停，Ctrl+←/→ 切歌
 function onKey(e: KeyboardEvent) {
@@ -29,6 +32,7 @@ watch(() => player.current?.cover, () => updateThemeFromCover(player.current?.co
 
 onMounted(() => {
   lib.load().then(initMiniSync)
+  initAppShell(router)
   window.addEventListener('keydown', onKey)
 })
 </script>

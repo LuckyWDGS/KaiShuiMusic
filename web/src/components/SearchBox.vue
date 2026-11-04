@@ -83,6 +83,9 @@ input::placeholder { color: var(--text-3); }
   position: absolute; top: 40px; left: -40px; width: 320px; z-index: 50; padding: 16px; border-radius: 10px;
   background: var(--surface); box-shadow: 0 16px 40px rgba(0, 0, 0, .45); max-height: 460px; overflow-y: auto;
 }
+@media (max-width: 760px) {
+  .dropdown { left: 0; right: 0; width: auto; }
+}
 .block-head { display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 12px; }
 .trash { display: flex; color: var(--text-2); }
 .trash:hover { color: var(--text); }

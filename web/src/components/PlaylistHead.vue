@@ -52,4 +52,9 @@ h1 { font-size: 20px; font-weight: 700; margin: 0 0 10px; }
 .play:disabled { background: #2c2c2c; color: var(--text-3); cursor: default; }
 .more { display: flex; color: var(--text-2); padding: 4px; border-radius: 6px; }
 .more:hover { color: var(--text); background: rgba(255, 255, 255, .08); }
+@media (max-width: 760px) {
+  .head { gap: 14px; }
+  .cover { width: 120px; }
+  h1 { font-size: 17px; margin-bottom: 6px; }
+}
 </style>

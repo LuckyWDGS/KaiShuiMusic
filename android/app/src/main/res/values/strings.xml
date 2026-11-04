@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">开水音乐</string>
+    <string name="channel_playback">正在播放</string>
+    <string name="action_prev">上一首</string>
+    <string name="action_play">播放</string>
+    <string name="action_pause">暂停</string>
+    <string name="action_next">下一首</string>
+    <string name="action_close">关闭</string>
+    <string name="start_failed">启动失败：%1$s</string>
+</resources>

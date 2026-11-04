@@ -44,6 +44,8 @@ export const usePlayer = defineStore('player', () => {
   // 界面状态
   const showNowPlaying = ref(false)
   const showQueue = ref(false)
+  /** 本次启动已经开始过播放（恢复的播放列表还没播放时为 false） */
+  const started = ref(false)
 
   const current = computed<Song | null>(() => queue.value[index.value] ?? null)
   const lyricIndex = computed(() => currentLineIndex(lyrics.value, currentTime.value))
@@ -71,6 +73,7 @@ export const usePlayer = defineStore('player', () => {
     const song = queue.value[i]
     if (!song) return
     const token = ++loadToken
+    started.value = true
     index.value = i
     resolved.value = null
     lyrics.value = []
@@ -271,6 +274,7 @@ export const usePlayer = defineStore('player', () => {
       a.removeAttribute('src')
     }
     standbyUrl = ''
+    started.value = false
     queue.value = []
     index.value = -1
     resolved.value = null
@@ -287,7 +291,7 @@ export const usePlayer = defineStore('player', () => {
   const feedPreview = shallowRef<Song[]>([])
   /** 推荐页当前是否可见 */
   const previewActive = ref(false)
-  const inPreview = () => previewActive.value && context.value !== 'feed' && feedPreview.value.length > 0
+  const inPreview = () => previewActive.value && !started.value && context.value !== 'feed' && feedPreview.value.length > 0
 
   /** 从推荐流第 i 首开始播放 */
   function startPreview(i = 0) {
@@ -456,6 +460,6 @@ export const usePlayer = defineStore('player', () => {
     queue, index, context, mode, playing, loading, currentTime, duration, volume, muted,
     resolved, lyrics, lyricIndex, lyricLoading, showNowPlaying, showQueue, current,
     playList, play, insertNext, removeAt, clearQueue, toggle, next, prev, seek, setVolume, cycleMode,
-    load, loadMoreFeed, queueSource, station, playStation, leaveStation, feedPreview, previewActive, startPreview, prepare,
+    load, loadMoreFeed, queueSource, station, playStation, leaveStation, feedPreview, previewActive, startPreview, prepare, started,
   }
 })

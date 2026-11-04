@@ -4,6 +4,7 @@
 package music
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -250,20 +251,29 @@ func (s *Service) Detail(kind, source, id string) ([]model.Song, error) {
 
 // ---------- 搜索 ----------
 
-type SearchResult struct {
-	Songs     []model.Song     `json:"songs"`
-	Playlists []model.Playlist `json:"playlists"`
+// SearchChunk 是一个平台返回的一批搜索结果
+type SearchChunk struct {
+	Source    string           `json:"source,omitempty"`
+	Songs     []model.Song     `json:"songs,omitempty"`
+	Playlists []model.Playlist `json:"playlists,omitempty"`
 	// Parsed 表示关键字是一个分享链接，已直接解析
-	Parsed bool `json:"parsed"`
+	Parsed bool `json:"parsed,omitempty"`
 }
 
-func (s *Service) Search(keyword, searchType string, sources []string) (*SearchResult, error) {
+// Search 同时搜索各平台，哪个平台先返回就先通过 emit 交给调用方，不用等最慢的平台。
+// emit 只在当前协程里调用；ctx 取消后立即返回，还没结束的平台在后台完成并写入缓存。
+func (s *Service) Search(ctx context.Context, keyword, searchType string, sources []string, emit func(SearchChunk)) error {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
-		return &SearchResult{}, nil
+		return nil
 	}
 	if strings.HasPrefix(keyword, "http") {
-		return s.parseLink(keyword)
+		chunk, err := s.parseLink(keyword)
+		if err != nil {
+			return err
+		}
+		emit(*chunk)
+		return nil
 	}
 	if len(sources) == 0 {
 		switch searchType {
@@ -275,64 +285,65 @@ func (s *Service) Search(keyword, searchType string, sources []string) (*SearchR
 			sources = DefaultSongSources
 		}
 	}
-	key := fmt.Sprintf("search:%s:%s:%s", searchType, strings.Join(sources, ","), keyword)
-	return cached(s.cache, key, 10*time.Minute, func() (*SearchResult, error) {
-		res := &SearchResult{}
-		var wg sync.WaitGroup
-		switch searchType {
-		case "playlist", "album":
-			groups := make([][]model.Playlist, len(sources))
-			for i, src := range sources {
-				fn := core.GetPlaylistSearchFunc(src)
-				if searchType == "album" {
-					fn = core.GetAlbumSearchFunc(src)
-				}
-				if fn == nil {
-					continue
-				}
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					pls, err := withTimeout(searchTimeout, func() ([]model.Playlist, error) { return fn(keyword) })
-					if err != nil {
-						return
-					}
-					for j := range pls {
-						pls[j].Source = src
-					}
-					groups[i] = pls
-				}()
-			}
-			wg.Wait()
-			res.Playlists = interleave(groups, 0)
-		default:
-			groups := make([][]model.Song, len(sources))
-			for i, src := range sources {
-				fn := core.GetSearchFunc(src)
-				if fn == nil {
-					continue
-				}
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					songs, err := withTimeout(searchTimeout, func() ([]model.Song, error) { return fn(keyword) })
-					if err != nil {
-						return
-					}
-					for j := range songs {
-						songs[j].Source = src
-					}
-					groups[i] = songs
-				}()
-			}
-			wg.Wait()
-			res.Songs = interleave(groups, 0)
-		}
-		return res, nil
-	})
+	return firstCome(ctx, sources, func(src string) SearchChunk { return s.searchSource(src, searchType, keyword) }, emit)
 }
 
-func (s *Service) parseLink(link string) (*SearchResult, error) {
+// firstCome 为每个平台开一个协程，按完成的先后顺序交出有内容的结果
+func firstCome(ctx context.Context, sources []string, search func(src string) SearchChunk, emit func(SearchChunk)) error {
+	results := make(chan SearchChunk, len(sources))
+	for _, src := range sources {
+		go func() { results <- search(src) }()
+	}
+	for range sources {
+		select {
+		case c := <-results:
+			if len(c.Songs) > 0 || len(c.Playlists) > 0 {
+				emit(c)
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+// searchSource 搜索单个平台，结果按平台缓存；失败或不支持时返回空结果
+func (s *Service) searchSource(src, searchType, keyword string) SearchChunk {
+	key := fmt.Sprintf("search:%s:%s:%s", searchType, src, keyword)
+	chunk, _ := cached(s.cache, key, 10*time.Minute, func() (SearchChunk, error) {
+		out := SearchChunk{Source: src}
+		switch searchType {
+		case "playlist", "album":
+			fn := core.GetPlaylistSearchFunc(src)
+			if searchType == "album" {
+				fn = core.GetAlbumSearchFunc(src)
+			}
+			if fn == nil {
+				return out, nil
+			}
+			pls, err := withTimeout(searchTimeout, func() ([]model.Playlist, error) { return fn(keyword) })
+			for i := range pls {
+				pls[i].Source = src
+			}
+			out.Playlists = pls
+			return out, err
+		default:
+			fn := core.GetSearchFunc(src)
+			if fn == nil {
+				return out, nil
+			}
+			songs, err := withTimeout(searchTimeout, func() ([]model.Song, error) { return fn(keyword) })
+			for i := range songs {
+				songs[i].Source = src
+			}
+			out.Songs = songs
+			return out, err
+		}
+	})
+	return chunk
+}
+
+func (s *Service) parseLink(link string) (*SearchChunk, error) {
 	src := core.DetectSource(link)
 	if src == "" {
 		return nil, errors.New("无法识别该链接")
@@ -340,7 +351,7 @@ func (s *Service) parseLink(link string) (*SearchResult, error) {
 	if fn := core.GetParseFunc(src); fn != nil {
 		if song, err := fn(link); err == nil && song != nil {
 			song.Source = src
-			return &SearchResult{Songs: []model.Song{*song}, Parsed: true}, nil
+			return &SearchChunk{Source: src, Songs: []model.Song{*song}, Parsed: true}, nil
 		}
 	}
 	for _, fn := range []func(string) (*model.Playlist, []model.Song, error){core.GetParsePlaylistFunc(src), core.GetParseAlbumFunc(src)} {
@@ -351,7 +362,7 @@ func (s *Service) parseLink(link string) (*SearchResult, error) {
 			for i := range songs {
 				songs[i].Source = src
 			}
-			return &SearchResult{Songs: songs, Parsed: true}, nil
+			return &SearchChunk{Source: src, Songs: songs, Parsed: true}, nil
 		}
 	}
 	return nil, fmt.Errorf("暂不支持解析该%s链接", core.GetSourceDescription(src))

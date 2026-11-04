@@ -84,10 +84,16 @@ watch(() => [props.song, isCurrent.value] as const, async ([song, current]) => {
 .right { width: min(420px, 44%); height: calc(var(--cover) * 1.1); }
 .large .right { width: min(520px, 46%); }
 
-/* 窄屏（手机 / 小窗口）：唱片在上，歌词在下 */
+/* 手机：唱片在上，歌词占满剩余高度 */
 @media (max-width: 760px) {
-  .stage { --cover: min(76vw, 340px); padding: 48px 24px 24px; align-items: flex-start; }
-  .row { flex-direction: column; gap: 16px; }
-  .right { width: 100%; height: 28vh; }
+  .stage { --cover: min(72vw, 36vh); padding: 4px 24px 0; align-items: stretch; }
+  .row { flex-direction: column; gap: 10px; height: 100%; justify-content: flex-start; }
+  .info { width: 100%; margin: 2px 0 0; }
+  .right { width: 100%; height: auto; flex: 1; min-height: 0; }
+  .right :deep(.lyric) { text-align: center; }
+  .right :deep(.pad-top) { height: 8%; }
+  .right :deep(.tip) { padding-top: 8%; }
+  .right :deep(.line) { font-size: 16px; line-height: 24px; padding: 6px 0; }
+  .right :deep(.tip) { font-size: 16px; line-height: 24px; }
 }
 </style>

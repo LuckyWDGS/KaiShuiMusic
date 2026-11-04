@@ -1,0 +1,64 @@
+plugins {
+    id 'com.android.application'
+}
+
+// 版本号统一取自仓库根目录的 VERSION 文件，如 0.2.0 → versionCode 200
+def appVersion = rootProject.file('../VERSION').text.trim()
+def versionParts = appVersion.tokenize('.').collect { it as int }
+
+// 发布签名：android/keystore.properties（不进仓库）。没有这个文件时用调试签名，方便本地构建
+def keystoreFile = rootProject.file('keystore.properties')
+def keystore = new Properties()
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystore.load(it) }
+
+android {
+    namespace 'com.kaishui.music'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.kaishui.music'
+        minSdk 24
+        targetSdk 35
+        versionCode versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+        versionName appVersion
+    }
+
+    signingConfigs {
+        if (keystoreFile.exists()) {
+            release {
+                storeFile rootProject.file(keystore['storeFile'])
+                storePassword keystore['storePassword']
+                keyAlias keystore['keyAlias']
+                keyPassword keystore['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    // 压缩存放 Go 内核，安装包体积减半
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // Go 内核，由 build-android.ps1 通过 gomobile bind 生成
+    implementation files('libs/kaishui.aar')
+}

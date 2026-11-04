@@ -1,6 +1,6 @@
 // 后端接口封装。PC 版与后端同源；手机 / 电视版可在设置中填写局域网内 PC 的服务地址。
 import type {
-  DetailKind, Home, LibraryData, Playlist, Resolved, SavedPlaylist, SearchType, Song, SourceInfo, Station,
+  DetailKind, Home, LibraryData, Resolved, SavedPlaylist, SearchChunk, SearchType, Song, SourceInfo, Station,
 } from '@/types'
 
 const BASE_KEY = 'kaishui.serverBase'
@@ -49,10 +49,24 @@ export const api = {
   station: (kind: string, id: string) => request<Song[]>('/station', { params: { kind, id } }),
   detail: (kind: DetailKind, source: string, id: string) =>
     request<Song[]>('/detail', { params: { kind, source, id } }),
-  search: (q: string, type: SearchType, sources?: string[]) =>
-    request<{ songs: Song[] | null; playlists: Playlist[] | null; parsed: boolean }>('/search', {
-      params: { q, type, sources: sources?.join(',') },
-    }),
+  /** 流式搜索：各平台同时搜索，哪个先返回就先回调，全部结束后 Promise 完成 */
+  async search(q: string, type: SearchType, onChunk: (c: SearchChunk) => void, signal?: AbortSignal) {
+    const res = await fetch(url('/search', { q, type }), { signal })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error((data as { error?: string }).error || `请求失败 (${res.status})`)
+    }
+    const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader()
+    let buffer = ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return
+      buffer += value
+      const lines = buffer.split('\n')
+      buffer = lines.pop()!
+      for (const line of lines) if (line) onChunk(JSON.parse(line))
+    }
+  },
 
   resolve: (song: Song) => post<Resolved>('/resolve', song),
   lyric: (song: Song) => post<{ lyric: string }>('/lyric', song),

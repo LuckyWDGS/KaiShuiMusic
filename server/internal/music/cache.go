@@ -2,6 +2,7 @@ package music
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -38,7 +39,15 @@ func (s *Service) saveDisk(name string, v any) {
 type ttlCache struct {
 	mu    sync.Mutex
 	items map[string]cacheItem
+	calls map[string]*cacheCall
 	max   int
+}
+
+// cacheCall 是一次进行中的加载，相同 key 的并发请求共用它的结果
+type cacheCall struct {
+	done  chan struct{}
+	value any
+	err   error
 }
 
 type cacheItem struct {
@@ -47,7 +56,7 @@ type cacheItem struct {
 }
 
 func newTTLCache(max int) *ttlCache {
-	return &ttlCache{items: make(map[string]cacheItem), max: max}
+	return &ttlCache{items: make(map[string]cacheItem), calls: make(map[string]*cacheCall), max: max}
 }
 
 func (c *ttlCache) Get(key string) (any, bool) {
@@ -86,16 +95,35 @@ func (c *ttlCache) Set(key string, value any, ttl time.Duration) {
 }
 
 // cached 读取缓存，未命中时调用 load 并在成功后写入缓存。
+// 相同 key 的并发请求（如后台预热和页面同时取推荐流）只调用一次 load。
 func cached[T any](c *ttlCache, key string, ttl time.Duration, load func() (T, error)) (T, error) {
 	if v, ok := c.Get(key); ok {
 		if t, ok := v.(T); ok {
 			return t, nil
 		}
 	}
-	v, err := load()
-	if err != nil {
-		return v, err
+	c.mu.Lock()
+	if call, ok := c.calls[key]; ok {
+		c.mu.Unlock()
+		<-call.done
+		t, _ := call.value.(T)
+		return t, call.err
 	}
-	c.Set(key, v, ttl)
-	return v, nil
+	call := &cacheCall{done: make(chan struct{}), err: errors.New("加载失败")}
+	c.calls[key] = call
+	c.mu.Unlock()
+	// 放在 defer 里：load 发生 panic 时也要释放等待者，否则相同 key 的请求会一直卡住
+	defer func() {
+		c.mu.Lock()
+		delete(c.calls, key)
+		c.mu.Unlock()
+		close(call.done)
+	}()
+
+	v, err := load()
+	call.value, call.err = v, err
+	if err == nil {
+		c.Set(key, v, ttl)
+	}
+	return v, err
 }

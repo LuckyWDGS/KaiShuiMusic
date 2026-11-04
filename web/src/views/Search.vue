@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Play, Loader2 } from 'lucide-vue-next'
 import SongList from '@/components/SongList.vue'
@@ -24,17 +24,29 @@ const songs = ref<Song[]>([])
 const playlists = ref<Playlist[]>([])
 const loading = ref(false)
 const error = ref('')
+const aborter = new AbortController()
+
+// 同一首歌只保留最先返回的平台的结果
+const seen = new Set<string>()
+const fresh = (s: Song) => {
+  const key = `${s.name}|${s.artist}`.toLowerCase().replace(/\s+/g, '')
+  if (seen.has(key)) return false
+  seen.add(key)
+  return true
+}
 
 async function search() {
   if (!keyword) return
   loading.value = true
   error.value = ''
   try {
-    const res = await api.search(keyword, type)
-    songs.value = res.songs || []
-    playlists.value = res.playlists || []
+    // 各平台同时搜索，先返回的先显示，后到的结果追加在后面，已显示的内容位置不变
+    await api.search(keyword, type, (c) => {
+      songs.value.push(...(c.songs || []).filter(fresh))
+      playlists.value.push(...(c.playlists || []))
+    }, aborter.signal)
   } catch (e) {
-    error.value = (e as Error).message
+    if (!aborter.signal.aborted) error.value = (e as Error).message
   } finally {
     loading.value = false
   }
@@ -44,6 +56,7 @@ function switchType(t: SearchType) {
   router.replace({ name: 'search', query: { q: keyword, type: t } })
 }
 onMounted(search)
+onBeforeUnmount(() => aborter.abort())
 </script>
 
 <template>
@@ -58,8 +71,8 @@ onMounted(search)
       </button>
     </div>
 
-    <div v-if="loading" class="empty"><Loader2 :size="26" class="spin" /><p>正在全网搜索…</p></div>
-    <div v-else-if="error" class="empty">{{ error }}</div>
+    <div v-if="loading && !songs.length && !playlists.length" class="empty"><Loader2 :size="26" class="spin" /><p>正在全网搜索…</p></div>
+    <div v-else-if="error && !songs.length && !playlists.length" class="empty">{{ error }}</div>
     <template v-else-if="type === 'song'">
       <div v-if="!songs.length" class="empty">没有找到相关歌曲</div>
       <div v-else class="card">
@@ -72,6 +85,7 @@ onMounted(search)
         <PlaylistCard v-for="p in playlists" :key="p.source + p.id" :item="p" :kind="type === 'album' ? 'album' : 'playlist'" />
       </div>
     </template>
+    <div v-if="loading && (songs.length || playlists.length)" class="more"><Loader2 :size="16" class="spin" />正在加载更多结果…</div>
   </div>
 </template>
 
@@ -93,6 +107,7 @@ onMounted(search)
 .card { background: #1b1b1b; border-radius: 10px; padding: 12px 0 8px; }
 .card :deep(.song-list) { margin: 0; }
 .card :deep(.row) { padding: 0 16px 0 24px; }
+.more { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 0; font-size: 13px; color: var(--text-3); }
 .spin { animation: spin 1s linear infinite; color: var(--accent); }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

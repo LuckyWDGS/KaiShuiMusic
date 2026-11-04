@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -22,7 +24,8 @@ import (
 	"github.com/guohuiyuan/music-lib/model"
 )
 
-const Version = "0.1.0"
+// Version 由构建脚本按仓库根目录的 VERSION 文件写入
+var Version = "dev"
 
 type Server struct {
 	music   *music.Service
@@ -162,8 +165,27 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if v := strings.TrimSpace(q.Get("sources")); v != "" {
 		sources = strings.Split(v, ",")
 	}
-	res, err := s.music.Search(q.Get("q"), queryOr(r, "type", "song"), sources)
-	respond(w, res, err)
+	// 每个平台返回后立刻写出一行 JSON，前端边收边显示，不用等最慢的平台
+	started := false
+	enc := json.NewEncoder(w)
+	rc := http.NewResponseController(w)
+	start := func() {
+		if !started {
+			started = true
+			w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+		}
+	}
+	err := s.music.Search(r.Context(), q.Get("q"), queryOr(r, "type", "song"), sources, func(c music.SearchChunk) {
+		start()
+		if err := enc.Encode(c); err == nil {
+			_ = rc.Flush()
+		}
+	})
+	if err != nil && !started && r.Context().Err() == nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	start()
 }
 
 // ---------- 播放 ----------
@@ -415,12 +437,26 @@ func (s *Server) spaHandler() http.Handler {
 
 // ---------- 工具 ----------
 
+// withCORS 只放行本机和局域网来源的请求。桌面版监听固定端口，
+// 不做限制的话用户打开的任意网页都能调用本地接口（改设置、触发下载、读取本地文件）。
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+			if !localHost(r.Host) {
+				writeError(w, http.StatusForbidden, "forbidden")
+				return
+			}
+			if origin := r.Header.Get("Origin"); origin != "" {
+				u, err := url.Parse(origin)
+				if err != nil || !localHost(u.Host) {
+					writeError(w, http.StatusForbidden, "forbidden")
+					return
+				}
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+			}
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return
@@ -428,6 +464,20 @@ func withCORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// localHost 判断地址是否为本机或局域网：localhost、私有 IP，以及不带点的主机名和 .local 名称。
+// 公网域名一律拒绝，也能挡住把域名解析到 127.0.0.1 的 DNS 重绑定攻击。
+func localHost(hostport string) bool {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+	}
+	return !strings.Contains(host, ".") || strings.HasSuffix(host, ".local")
 }
 
 func queryOr(r *http.Request, key, def string) string {

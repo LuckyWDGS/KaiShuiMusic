@@ -58,13 +58,8 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		// 明文音频直接流式转发，起播更快
 		downloadURL = info.URL
 	} else {
-		dlFunc := core.GetDownloadFunc(song.Source)
-		if dlFunc == nil {
-			http.Error(w, "unknown source", http.StatusBadRequest)
-			return
-		}
-		u, err := dlFunc(song)
-		if err != nil || !strings.HasPrefix(u, "http") {
+		u, err := s.music.PlayURL(song)
+		if err != nil {
 			http.Error(w, "failed to get url", http.StatusNotFound)
 			return
 		}

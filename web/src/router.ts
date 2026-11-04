@@ -7,6 +7,7 @@ export const router = createRouter({
     { path: '/modes', name: 'modes', component: () => import('@/views/Modes.vue') },
     { path: '/detail/:kind/:source/:id', name: 'detail', component: () => import('@/views/PlaylistDetail.vue') },
     { path: '/search', name: 'search', component: () => import('@/views/Search.vue') },
+    { path: '/mine', name: 'mine', component: () => import('@/views/Mine.vue') },
     { path: '/mine/likes', name: 'likes', component: () => import('@/views/MySongs.vue'), meta: { list: 'likes' } },
     { path: '/mine/history', name: 'history', component: () => import('@/views/MySongs.vue'), meta: { list: 'history' } },
     { path: '/mine/playlist/:id', name: 'created', component: () => import('@/views/CreatedPlaylist.vue') },

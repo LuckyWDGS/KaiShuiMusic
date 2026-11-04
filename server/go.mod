@@ -6,6 +6,8 @@ require (
 	github.com/guohuiyuan/go-music-dl v1.1.3
 	github.com/guohuiyuan/music-lib v1.1.1-0.20261018010056-7cc4467b4e30
 	github.com/jchv/go-webview2 v0.0.0-20260205173254-56598839c808
+	golang.org/x/mobile v0.0.0-20261011034528-197770444867
+	golang.org/x/sys v0.49.0
 )
 
 require (
@@ -24,8 +26,10 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/mod v0.42.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/tools v0.52.0 // indirect
 	gorm.io/gorm v1.31.1 // indirect
 	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

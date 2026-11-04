@@ -19,6 +19,8 @@ const (
 	switchCandidatesPerSource = 8
 	switchHighConfidence      = 0.98
 	switchValidateLimit       = 10
+	// 已有试听片段时换源的总时限。找不到时各平台要搜两轮再逐个校验，可能耗时近 20 秒，到时限就先用试听
+	switchTimeout = 8 * time.Second
 )
 
 type Resolved struct {
@@ -41,13 +43,18 @@ func (s *Service) Resolve(song model.Song) (*Resolved, error) {
 		if playable && !preview {
 			return &Resolved{Song: song}, nil
 		}
-		if alt := findSwitchSong(song); alt != nil {
+		if !playable {
+			// 没有试听片段可以兜底，换源多久都要等
+			if alt := findSwitchSong(song); alt != nil {
+				return &Resolved{Song: *alt, Switched: true}, nil
+			}
+			return nil, errors.New("暂无可播放的音源")
+		}
+		alt, _ := withTimeout(switchTimeout, func() (*model.Song, error) { return findSwitchSong(song), nil })
+		if alt != nil {
 			return &Resolved{Song: *alt, Switched: true}, nil
 		}
-		if playable {
-			return &Resolved{Song: song, Preview: true}, nil
-		}
-		return nil, errors.New("暂无可播放的音源")
+		return &Resolved{Song: song, Preview: true}, nil
 	})
 }
 
@@ -83,12 +90,31 @@ func (s *Service) checkPlayable(song *model.Song) (preview bool, playable bool) 
 		}
 		return info.Preview, true
 	}
-	fn := core.GetDownloadFunc(song.Source)
-	if fn == nil {
-		return false, false
-	}
-	u, err := withTimeout(searchTimeout, func() (string, error) { return fn(song) })
-	return false, err == nil && strings.HasPrefix(u, "http")
+	_, err := s.PlayURL(song)
+	return false, err == nil
+}
+
+// PlayURL 获取汽水以外平台的播放地址并短暂缓存。解析可播放性、取流、拖动进度都要用到，
+// 上游每次要 1~3 秒，缓存后歌曲解析完就能直接开始取流。
+func (s *Service) PlayURL(song *model.Song) (string, error) {
+	return cached(s.cache, "url:"+song.Source+":"+song.ID, 5*time.Minute, func() (string, error) {
+		fn := core.GetDownloadFunc(song.Source)
+		if fn == nil {
+			return "", errors.New("不支持的音源")
+		}
+		u, err := withTimeout(searchTimeout, func() (string, error) { return fn(song) })
+		if err != nil {
+			// 上游偶发失败时再试一次，否则播放器会直接跳到下一首
+			u, err = withTimeout(searchTimeout, func() (string, error) { return fn(song) })
+		}
+		if err != nil {
+			return "", err
+		}
+		if !strings.HasPrefix(u, "http") {
+			return "", errors.New("未返回播放地址")
+		}
+		return u, nil
+	})
 }
 
 type switchCandidate struct {

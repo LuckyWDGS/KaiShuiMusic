@@ -26,6 +26,9 @@
   --sidebar-w: 200px;
   --topbar-h: 56px;
   --playerbar-h: 88px;
+  /* 状态栏、导航栏高度。安卓 APP 全屏显示，由壳程序覆盖成实际值 */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
   --font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'HarmonyOS Sans SC', 'Segoe UI', sans-serif;
   color-scheme: dark;
 }

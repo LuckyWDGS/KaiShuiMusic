@@ -14,6 +14,14 @@ export interface Song {
   is_vip?: boolean
 }
 
+/** 一个平台返回的一批搜索结果 */
+export interface SearchChunk {
+  source?: string
+  songs?: Song[]
+  playlists?: Playlist[]
+  parsed?: boolean
+}
+
 export interface Playlist {
   id: string
   name: string

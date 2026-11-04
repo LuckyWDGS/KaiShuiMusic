@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 推荐：单曲推荐流（参照汽水音乐）。滚轮 / 方向键切换歌曲。
+// 推荐：单曲推荐流（参照汽水音乐）。滚轮 / 方向键 / 手机上下滑切换歌曲。
 import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue'
 import { Loader2, AudioLines, X } from 'lucide-vue-next'
 import SongStage from '@/components/SongStage.vue'
@@ -12,8 +12,8 @@ const player = usePlayer()
 
 const error = ref('')
 const active = ref(false)
-const inFeed = computed(() => player.context === 'feed' && !!player.current)
-// 还没开始收听推荐流时展示推荐流第一首（预览），播放条等控制会从这里开始播放
+const inFeed = computed(() => !!player.current && (player.context === 'feed' || player.started))
+// 本次启动还没播放过时展示推荐流第一首（预览），播放条等控制会从这里开始播放；否则展示正在播放的歌
 const song = computed<Song | null>(() => (inFeed.value ? player.current : player.feedPreview[0] ?? null))
 
 async function loadFeed() {
@@ -40,6 +40,19 @@ function onWheel(e: WheelEvent) {
   if ((e.target as HTMLElement).closest('.lyric')) return
   wheelLock = Date.now()
   go(e.deltaY > 0 ? 1 : -1)
+}
+
+let touchX = 0
+let touchY = 0
+function onTouchStart(e: TouchEvent) {
+  touchX = e.touches[0].clientX
+  touchY = e.touches[0].clientY
+}
+function onTouchEnd(e: TouchEvent) {
+  if ((e.target as HTMLElement).closest('.lyric')) return
+  const dx = e.changedTouches[0].clientX - touchX
+  const dy = e.changedTouches[0].clientY - touchY
+  if (Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx) * 1.5) go(dy < 0 ? 1 : -1)
 }
 
 function onKey(e: KeyboardEvent) {
@@ -73,7 +86,7 @@ onDeactivated(() => {
 </script>
 
 <template>
-  <div class="for-you" @wheel="onWheel">
+  <div class="for-you" @wheel="onWheel" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
     <div v-if="error" class="state">
       <p>{{ error }}</p>
       <button class="btn primary" @click="loadFeed">重新加载</button>
@@ -97,6 +110,9 @@ onDeactivated(() => {
 }
 .station button { display: flex; padding: 4px; border-radius: 50%; color: var(--text-2); }
 .station button:hover { color: var(--text); background: rgba(255, 255, 255, .12); }
+@media (max-width: 760px) {
+  .station { left: 14px; top: 0; }
+}
 .state { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
